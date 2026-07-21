@@ -1,64 +1,154 @@
 import { useState, useRef } from 'react';
 
-export const useAudioCapture = (onAudioData) => {
+export const useAudioCapture = (onAudioData, onRecordingStop, onVolumeChange) => {
   const [isRecording, setIsRecording] = useState(false);
-  const audioContextRef = useRef(null);
   const streamRef = useRef(null);
   const processorRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const onAudioDataRef = useRef(onAudioData);
+  const onRecordingStopRef = useRef(onRecordingStop);
+  const onVolumeChangeRef = useRef(onVolumeChange);
+  onAudioDataRef.current = onAudioData;
+  onRecordingStopRef.current = onRecordingStop;
+  onVolumeChangeRef.current = onVolumeChange;
+
+  const downsample = (float32Array, fromRate, toRate) => {
+    if (fromRate === toRate) {
+      const int16 = new Int16Array(float32Array.length);
+      for (let i = 0; i < float32Array.length; i++) {
+        int16[i] = Math.max(-1, Math.min(1, float32Array[i])) * 0x7FFF;
+      }
+      return int16;
+    }
+    const ratio = fromRate / toRate;
+    const newLength = Math.floor(float32Array.length / ratio);
+    const int16 = new Int16Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const srcIndex = Math.floor(i * ratio);
+      int16[i] = Math.max(-1, Math.min(1, float32Array[srcIndex])) * 0x7FFF;
+    }
+    return int16;
+  };
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      
-      // Gemini Live API requires 16kHz audio sample rate
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      
-      processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
-      
-      source.connect(processorRef.current);
-      processorRef.current.connect(audioContextRef.current.destination);
-      
-      processorRef.current.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        // Convert Float32 to Int16 (Linear PCM)
-        const pcmData = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+      // Si ya está grabando, no hacer nada
+      if (streamRef.current || processorRef.current) {
+        console.warn('Ya se está grabando actualmente.');
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
         }
+      });
+      streamRef.current = stream;
+
+      // Reusar AudioContext si ya existe para evitar fugas y bloqueos por recreación rápida
+      let audioCtx = audioContextRef.current;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = audioCtx;
+      }
+      
+      // Asegurar que el contexto no esté suspendido (autopolicy de navegadores)
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+        console.log('🔊 AudioContext reanudado con éxito');
+      }
+      
+      const nativeSampleRate = audioCtx.sampleRate;
+      console.log(`🎤 Sample rate nativo: ${nativeSampleRate}Hz`);
+
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // ScriptProcessorNode con buffer de 4096
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      let chunkCount = 0;
+
+      processor.onaudioprocess = (e) => {
+        // Doble verificación: si no deberíamos estar grabando, ignorar
+        if (!processorRef.current) return;
+
+        const inputData = e.inputBuffer.getChannelData(0);
         
-        // Convert PCM to Base64 to send via WebSocket
+        // Calcular RMS (Root Mean Square) para medir el volumen real capturado
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sum += inputData[i] * inputData[i];
+        }
+        const rms = Math.sqrt(sum / inputData.length);
+
+        if (onVolumeChangeRef.current) {
+          onVolumeChangeRef.current(rms);
+        }
+
+        const pcm16k = downsample(inputData, nativeSampleRate, 16000);
+
+        // Convertir a Base64
+        const bytes = new Uint8Array(pcm16k.buffer);
         let binary = '';
-        const bytes = new Uint8Array(pcmData.buffer);
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
         }
         const base64Audio = window.btoa(binary);
-        
-        if (onAudioData) {
-          onAudioData(base64Audio);
+
+        chunkCount++;
+        if (chunkCount <= 5 || chunkCount % 20 === 0) {
+          console.log(`🔊 Chunk #${chunkCount}: RMS=${rms.toFixed(5)} (${pcm16k.length} samples)`);
+        }
+
+        if (onAudioDataRef.current) {
+          onAudioDataRef.current(base64Audio);
         }
       };
-      
+
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+
       setIsRecording(true);
+      console.log(`🎙️ Grabación iniciada (${nativeSampleRate}Hz → 16kHz PCM)`);
     } catch (err) {
       console.error('Error al acceder al micrófono:', err);
     }
   };
 
   const stopRecording = () => {
+    console.log('🛑 Solicitado detener grabación...');
+    
+    // 1. Limpiar el procesador inmediatamente para que no procese más onaudioprocess
     if (processorRef.current) {
+      processorRef.current.onaudioprocess = null;
       processorRef.current.disconnect();
+      processorRef.current = null;
     }
+
+    // 2. Detener todos los tracks del micrófono
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log(`Track de micrófono detenido: ${track.label}`);
+      });
+      streamRef.current = null;
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
+
+    // Nota: Dejamos el AudioContext abierto para la siguiente grabación
+
     setIsRecording(false);
+    if (onVolumeChangeRef.current) {
+      onVolumeChangeRef.current(0);
+    }
+    console.log('🛑 Grabación detenida por completo');
+
+    // 4. Enviar la señal de fin de stream después de limpiar todo
+    if (onRecordingStopRef.current) {
+      onRecordingStopRef.current();
+    }
   };
 
   return { isRecording, startRecording, stopRecording };
