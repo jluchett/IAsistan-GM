@@ -152,3 +152,130 @@ export const moverCorreoEtiqueta = async (id, addLabelIds = [], removeLabelIds =
     etiquetas: response.data.labelIds || []
   };
 };
+
+// Helper para construir mensajes en formato RAW MIME (base64url) con soporte UTF-8
+function createRawMessage({ to, subject, body, inReplyTo, references }) {
+  const parts = [
+    `To: ${to}`,
+    `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+  ];
+
+  if (inReplyTo) {
+    parts.push(`In-Reply-To: ${inReplyTo}`);
+  }
+  if (references) {
+    parts.push(`References: ${references}`);
+  }
+
+  // Separador de cabeceras y cuerpo
+  parts.push('', body);
+
+  const message = parts.join('\r\n');
+  return Buffer.from(message)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// 4. Crear un borrador (draft) en Gmail
+export const crearBorrador = async (destinatario, asunto, cuerpo) => {
+  const gmail = await getGmailService();
+  
+  console.log(`[Gmail Service] 📝 Creando borrador para: ${destinatario}, Asunto: "${asunto}"`);
+  
+  const raw = createRawMessage({ to: destinatario, subject: asunto, body: cuerpo });
+  const response = await gmail.users.drafts.create({
+    userId: 'me',
+    requestBody: {
+      message: {
+        raw
+      }
+    }
+  });
+
+  return {
+    id: response.data.id,
+    creado: true,
+    messageId: response.data.message?.id || ''
+  };
+};
+
+// 5. Enviar un correo electrónico directo
+export const enviarCorreo = async (destinatario, asunto, cuerpo) => {
+  const gmail = await getGmailService();
+  
+  console.log(`[Gmail Service] 📤 Enviando correo directo a: ${destinatario}, Asunto: "${asunto}"`);
+  
+  const raw = createRawMessage({ to: destinatario, subject: asunto, body: cuerpo });
+  const response = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: {
+      raw
+    }
+  });
+
+  return {
+    id: response.data.id,
+    enviado: true,
+    threadId: response.data.threadId
+  };
+};
+
+// 6. Responder a un correo electrónico existente (Reply en hilo)
+export const responderCorreo = async (idCorreo, cuerpo) => {
+  const gmail = await getGmailService();
+  
+  console.log(`[Gmail Service] ↩️ Generando respuesta para el correo con ID: ${idCorreo}`);
+  
+  // Obtener metadatos del correo original
+  const original = await gmail.users.messages.get({
+    userId: 'me',
+    id: idCorreo,
+    format: 'metadata',
+    metadataHeaders: ['Subject', 'Message-ID', 'References', 'From', 'Reply-To']
+  });
+
+  const headers = original.data.payload.headers || [];
+  const originalMessageId = getHeader(headers, 'Message-ID');
+  const originalSubject = getHeader(headers, 'Subject');
+  const originalFrom = getHeader(headers, 'Reply-To') || getHeader(headers, 'From');
+  const originalReferences = getHeader(headers, 'References') || '';
+
+  // Preparar asunto con "Re: " si no lo tiene
+  let subject = originalSubject;
+  if (!subject.toLowerCase().startsWith('re:')) {
+    subject = `Re: ${subject}`;
+  }
+
+  // Encadenar referencias para que los clientes de correo agrupen correctamente
+  const references = originalReferences 
+    ? `${originalReferences} ${originalMessageId}`.trim()
+    : originalMessageId;
+
+  // El destinatario de la respuesta es el remitente del correo original
+  const raw = createRawMessage({
+    to: originalFrom,
+    subject: subject,
+    body: cuerpo,
+    inReplyTo: originalMessageId,
+    references
+  });
+
+  const response = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: {
+      raw,
+      threadId: original.data.threadId
+    }
+  });
+
+  return {
+    id: response.data.id,
+    respondido: true,
+    threadId: response.data.threadId
+  };
+};

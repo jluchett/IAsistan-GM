@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { gmailToolsSchema } from '../services/toolsSchema.js';
-import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta } from '../services/gmailService.js';
+import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo } from '../services/gmailService.js';
 import { hasValidTokens } from '../config/googleAuth.js';
 
 dotenv.config();
@@ -114,6 +114,12 @@ export const setupWebSocketBridge = (server) => {
                           result = await leerCorreoPorId(call.args.id);
                         } else if (call.name === 'mover_correo_etiqueta') {
                           result = await moverCorreoEtiqueta(call.args.id, call.args.addLabelIds, call.args.removeLabelIds);
+                        } else if (call.name === 'crear_borrador') {
+                          result = await crearBorrador(call.args.destinatario, call.args.asunto, call.args.cuerpo);
+                        } else if (call.name === 'enviar_correo') {
+                          result = await enviarCorreo(call.args.destinatario, call.args.asunto, call.args.cuerpo);
+                        } else if (call.name === 'responder_correo') {
+                          result = await responderCorreo(call.args.id_correo, call.args.cuerpo);
                         } else {
                           result = { error: `Herramienta '${call.name}' no implementada.` };
                         }
