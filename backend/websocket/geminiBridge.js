@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { gmailToolsSchema } from '../services/toolsSchema.js';
-import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo } from '../services/gmailService.js';
+import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo, obtenerResumenDiario } from '../services/gmailService.js';
 import { hasValidTokens } from '../config/googleAuth.js';
 
 dotenv.config();
@@ -120,6 +120,9 @@ export const setupWebSocketBridge = (server) => {
                           result = await enviarCorreo(call.args.destinatario, call.args.asunto, call.args.cuerpo);
                         } else if (call.name === 'responder_correo') {
                           result = await responderCorreo(call.args.id_correo, call.args.cuerpo);
+                        } else if (call.name === 'obtener_resumen_diario') {
+                          const max = call.args.max_resultados || 10;
+                          result = await obtenerResumenDiario(max);
                         } else {
                           result = { error: `Herramienta '${call.name}' no implementada.` };
                         }

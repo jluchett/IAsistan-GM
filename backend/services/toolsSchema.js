@@ -111,5 +111,18 @@ export const gmailToolsSchema = [
       },
       required: ["id_correo", "cuerpo"]
     }
+  },
+  {
+    name: "obtener_resumen_diario",
+    description: "Obtiene un consolidado de los correos electrónicos más recientes (remitente, asunto, fecha, leído y contenido parcial) de la bandeja de entrada del usuario en una sola llamada para generar un boletín hablado o resumen diario.",
+    parameters: {
+      type: "object",
+      properties: {
+        max_resultados: {
+          type: "integer",
+          description: "El número de correos electrónicos a incluir en el resumen consolidado. Por defecto es 10."
+        }
+      }
+    }
   }
 ];

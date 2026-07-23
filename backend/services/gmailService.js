@@ -279,3 +279,45 @@ export const responderCorreo = async (idCorreo, cuerpo) => {
     threadId: response.data.threadId
   };
 };
+
+// 7. Resumen Diario Consolidado (Daily Briefing) de Correos
+export const obtenerResumenDiario = async (maxResultados = 10) => {
+  const gmail = await getGmailService();
+  console.log(`[Gmail Service] 📰 Generando resumen consolidado de los últimos ${maxResultados} correos...`);
+  
+  const response = await gmail.users.messages.list({
+    userId: 'me',
+    q: 'label:INBOX', // Filtrado por bandeja de entrada principal
+    maxResults: maxResultados
+  });
+
+  const messages = response.data.messages || [];
+  const detailPromises = messages.map(async (msg) => {
+    try {
+      const details = await gmail.users.messages.get({
+        userId: 'me',
+        id: msg.id,
+        format: 'full'
+      });
+      const headers = details.data.payload.headers || [];
+      const body = getMessageBody(details.data.payload);
+      
+      return {
+        id: msg.id,
+        remitente: getHeader(headers, 'From'),
+        asunto: getHeader(headers, 'Subject'),
+        fecha: getHeader(headers, 'Date'),
+        contenido_recortado: (body || details.data.snippet || '').substring(0, 400).trim(),
+        leido: !details.data.labelIds.includes('UNREAD')
+      };
+    } catch (err) {
+      console.error(`[Gmail Service] Error recuperando detalles para resumen en correo ${msg.id}:`, err.message);
+      return null;
+    }
+  });
+
+  const results = await Promise.all(detailPromises);
+  const emails = results.filter(r => r !== null);
+
+  return { emails };
+};
