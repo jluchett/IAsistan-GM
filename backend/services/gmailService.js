@@ -321,3 +321,59 @@ export const obtenerResumenDiario = async (maxResultados = 10) => {
 
   return { emails };
 };
+
+// 8. Búsqueda Web Interactiva en Vivo (DuckDuckGo HTML Scraping libre de cuotas)
+export const buscarEnWeb = async (query) => {
+  console.log(`[Search Service] 🔍 Realizando búsqueda en la web para: "${query}"`);
+  try {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error en respuesta HTTP: ${response.status}`);
+    }
+
+    const html = await response.text();
+    const results = [];
+    const regex = /<div class="[^"]*?results_links[^"]*?">([\s\S]*?)<div class="clear"><\/div>/g;
+    let match;
+
+    while ((match = regex.exec(html)) !== null && results.length < 5) {
+      const block = match[1];
+
+      // Ignorar anuncios patrocinados
+      if (block.includes('badge--ad') || block.includes('result--ad')) {
+        continue;
+      }
+
+      // Extraer enlace final decodificado
+      const urlMatch = /<a\s+[^>]*?class="[^"]*?result__a[^"]*?"[^>]*?href="([^"]+)"/i.exec(block);
+      let link = '';
+      if (urlMatch) {
+        const rawLink = urlMatch[1];
+        const uddgMatch = /uddg=([^&]+)/.exec(rawLink);
+        link = uddgMatch ? decodeURIComponent(uddgMatch[1]) : rawLink;
+      }
+
+      // Extraer título limpio
+      const rawTitle = /<a\s+[^>]*?class="[^"]*?result__a[^"]*?"[^>]*?>([\s\S]*?)<\/a>/i.exec(block);
+      const title = rawTitle ? rawTitle[1].replace(/<[^>]*>/g, '').trim() : 'Sin título';
+
+      // Extraer resumen/snippet limpio
+      const rawSnippet = /<a\s+[^>]*?class="[^"]*?result__snippet[^"]*?"[^>]*?>([\s\S]*?)<\/a>/i.exec(block);
+      const snippet = rawSnippet ? rawSnippet[1].replace(/<[^>]*>/g, '').trim() : '';
+
+      results.push({ title, snippet, link });
+    }
+
+    console.log(`[Search Service] Búsqueda finalizada. Encontrados ${results.length} resultados.`);
+    return { resultados: results };
+  } catch (error) {
+    console.error('[Search Service] Error al realizar búsqueda:', error.message);
+    return { error: `No se pudo completar la búsqueda en la web: ${error.message}` };
+  }
+};

@@ -124,5 +124,19 @@ export const gmailToolsSchema = [
         }
       }
     }
+  },
+  {
+    name: "buscar_en_web",
+    description: "Busca en la web en tiempo real para obtener información de actualidad, respuestas a preguntas generales, cotizaciones, noticias o detalles de productos que sirvan para responder al usuario o complementar un correo electrónico.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Los términos de búsqueda clave (ej. 'precio de bitcoin hoy', 'clima en madrid')."
+        }
+      },
+      required: ["query"]
+    }
   }
 ];

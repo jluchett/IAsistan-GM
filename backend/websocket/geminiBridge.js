@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { gmailToolsSchema } from '../services/toolsSchema.js';
-import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo, obtenerResumenDiario } from '../services/gmailService.js';
+import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo, obtenerResumenDiario, buscarEnWeb } from '../services/gmailService.js';
 import { hasValidTokens } from '../config/googleAuth.js';
 
 dotenv.config();
@@ -34,6 +34,13 @@ export const setupWebSocketBridge = (server) => {
           model: 'gemini-3.1-flash-live-preview',
           config: {
             responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: {
+                  voiceName: 'Leda'
+                }
+              }
+            },
             systemInstruction: {
               parts: [{
                 text: 'Eres un asistente de Gmail inteligente. Ayudas al usuario a gestionar su correo electrónico: leer, buscar, archivar y organizar sus mensajes. Responde siempre en español de forma concisa y útil.'
@@ -123,6 +130,8 @@ export const setupWebSocketBridge = (server) => {
                         } else if (call.name === 'obtener_resumen_diario') {
                           const max = call.args.max_resultados || 10;
                           result = await obtenerResumenDiario(max);
+                        } else if (call.name === 'buscar_en_web') {
+                          result = await buscarEnWeb(call.args.query);
                         } else {
                           result = { error: `Herramienta '${call.name}' no implementada.` };
                         }
