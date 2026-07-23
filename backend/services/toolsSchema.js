@@ -138,5 +138,31 @@ export const gmailToolsSchema = [
       },
       required: ["query"]
     }
+  },
+  {
+    name: "crear_evento_calendario",
+    description: "Crea o agenda un nuevo evento o reunión en el calendario de Google (Google Calendar) del usuario.",
+    parameters: {
+      type: "object",
+      properties: {
+        titulo: {
+          type: "string",
+          description: "El título, asunto o resumen del evento (ej. 'Reunión de desarrollo', 'Cita médica')."
+        },
+        descripcion: {
+          type: "string",
+          description: "Descripción detallada opcional del evento. Puede incluir enlaces o notas del correo electrónico."
+        },
+        fecha_inicio: {
+          type: "string",
+          description: "La fecha y hora de inicio del evento en formato ISO 8601 (ej. '2026-07-24T15:00:00-05:00')."
+        },
+        fecha_fin: {
+          type: "string",
+          description: "La fecha y hora de finalización del evento en formato ISO 8601 (ej. '2026-07-24T16:00:00-05:00'). Si no se indica, durará una hora por defecto."
+        }
+      },
+      required: ["titulo", "fecha_inicio"]
+    }
   }
 ];

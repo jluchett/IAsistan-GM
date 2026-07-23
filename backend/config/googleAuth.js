@@ -33,7 +33,8 @@ oauth2Client.on('tokens', (newTokens) => {
 export const getAuthUrl = () => {
   const scopes = [
     'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.modify'
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/calendar'
   ];
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',

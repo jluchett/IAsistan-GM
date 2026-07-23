@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { gmailToolsSchema } from '../services/toolsSchema.js';
 import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo, obtenerResumenDiario, buscarEnWeb } from '../services/gmailService.js';
 import { hasValidTokens } from '../config/googleAuth.js';
+import { crearEventoCalendario } from '../services/calendarService.js';
 
 dotenv.config();
 
@@ -132,6 +133,13 @@ export const setupWebSocketBridge = (server) => {
                           result = await obtenerResumenDiario(max);
                         } else if (call.name === 'buscar_en_web') {
                           result = await buscarEnWeb(call.args.query);
+                        } else if (call.name === 'crear_evento_calendario') {
+                          result = await crearEventoCalendario({
+                            titulo: call.args.titulo,
+                            descripcion: call.args.descripcion,
+                            fechaInicio: call.args.fecha_inicio,
+                            fechaFin: call.args.fecha_fin
+                          });
                         } else {
                           result = { error: `Herramienta '${call.name}' no implementada.` };
                         }
