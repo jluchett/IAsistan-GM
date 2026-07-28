@@ -9,7 +9,23 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://www.alamano.site',
+  'https://alamano.site',
+  'http://localhost:5174',
+  'http://localhost:5000'
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Crear servidor HTTP para adjuntar WebSockets
@@ -38,7 +54,7 @@ app.get('/auth/google/callback', async (req, res) => {
     try {
       const { tokens } = await oauth2Client.getToken(code);
       saveTokens(tokens);
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.alamano.site';
       res.redirect(`${frontendUrl}/?auth=success`);
     } catch (err) {
       console.error('[OAuth Callback] Error obteniendo tokens:', err.message);

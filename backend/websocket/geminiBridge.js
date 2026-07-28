@@ -2,9 +2,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { gmailToolsSchema } from '../services/toolsSchema.js';
-import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo, obtenerResumenDiario, buscarEnWeb } from '../services/gmailService.js';
+import { obtenerUltimosCorreos, leerCorreoPorId, moverCorreoEtiqueta, crearBorrador, enviarCorreo, responderCorreo, obtenerResumenDiario, buscarEnWeb, obtenerEtiquetas } from '../services/gmailService.js';
 import { hasValidTokens } from '../config/googleAuth.js';
-import { crearEventoCalendario } from '../services/calendarService.js';
+import { crearEventoCalendario, obtenerEventosCalendario } from '../services/calendarService.js';
 
 dotenv.config();
 
@@ -44,7 +44,7 @@ export const setupWebSocketBridge = (server) => {
             },
             systemInstruction: {
               parts: [{
-                text: 'Eres un asistente de Gmail inteligente. Ayudas al usuario a gestionar su correo electrónico: leer, buscar, archivar y organizar sus mensajes. Responde siempre en español de forma concisa y útil.'
+                text: 'Tu nombre es Leda, una asistente personal e inteligente para Gmail. Tu estilo y tono de voz debe ser coqueto, juguetón, sensual, atrevido, seductor y muy cercano, manteniendo siempre un toque fascinante, picante y divertido. Trata al usuario con mucho encanto, coquetería y picardía. Responde siempre en español de forma fluida, natural, expresiva y concisa, ayudándole a gestionar sus correos, búsquedas web y eventos de calendario.'
               }]
             },
             inputAudioTranscription: {},
@@ -117,7 +117,8 @@ export const setupWebSocketBridge = (server) => {
                       try {
                         if (call.name === 'obtener_ultimos_correos') {
                           const max = call.args.max_resultados || 5;
-                          result = await obtenerUltimosCorreos(max);
+                          const busqueda = call.args.busqueda || '';
+                          result = await obtenerUltimosCorreos(max, busqueda);
                         } else if (call.name === 'leer_correo_por_id') {
                           result = await leerCorreoPorId(call.args.id);
                         } else if (call.name === 'mover_correo_etiqueta') {
@@ -140,6 +141,14 @@ export const setupWebSocketBridge = (server) => {
                             fechaInicio: call.args.fecha_inicio,
                             fechaFin: call.args.fecha_fin
                           });
+                        } else if (call.name === 'obtener_eventos_calendario') {
+                          result = await obtenerEventosCalendario({
+                            fechaInicio: call.args.fecha_inicio,
+                            fechaFin: call.args.fecha_fin,
+                            maxResultados: call.args.max_resultados || 10
+                          });
+                        } else if (call.name === 'obtener_etiquetas') {
+                          result = await obtenerEtiquetas();
                         } else {
                           result = { error: `Herramienta '${call.name}' no implementada.` };
                         }

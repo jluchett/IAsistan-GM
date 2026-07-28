@@ -2,7 +2,24 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import './index.css';
 import { useAudioCapture } from './hooks/useAudioCapture';
 
-const WS_URL = 'ws://localhost:5000';
+const getApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:5000';
+  }
+  return 'https://api.alamano.site';
+};
+
+const getWsUrl = () => {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'ws://localhost:5000';
+  }
+  return 'wss://api.alamano.site';
+};
+
+const API_URL = getApiUrl();
+const WS_URL = getWsUrl();
 
 // Decodifica base64 PCM 24kHz 16-bit mono y lo reproduce via Web Audio API
 function createAudioPlayer() {
@@ -81,7 +98,7 @@ function App() {
         return;
       }
       try {
-        const res = await fetch('http://localhost:5000/auth/status');
+        const res = await fetch(`${API_URL}/auth/status`);
         const data = await res.json();
         setIsAuthenticated(data.authenticated);
       } catch (err) {
@@ -93,11 +110,11 @@ function App() {
     checkAuthStatus();
   }, []);
 
-  const handleLogin = () => { window.location.href = 'http://localhost:5000/auth/google'; };
+  const handleLogin = () => { window.location.href = `${API_URL}/auth/google`; };
 
   const handleLogout = async () => {
     try {
-      const res = await fetch('http://localhost:5000/auth/logout', { method: 'POST' });
+      const res = await fetch(`${API_URL}/auth/logout`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setIsAuthenticated(false);

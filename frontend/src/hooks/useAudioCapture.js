@@ -38,26 +38,30 @@ export const useAudioCapture = (onAudioData, onRecordingStop, onVolumeChange) =>
         return;
       }
 
+      // CRÍTICO PARA NAVEGADORES MÓVILES: Crear/reanudar AudioContext SINCRÓNICAMENTE dentro del evento de toque (user gesture)
+      let audioCtx = audioContextRef.current;
+      if (!audioCtx || audioCtx.state === 'closed') {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = audioCtx;
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: true
         }
       });
       streamRef.current = stream;
 
-      // Reusar AudioContext si ya existe para evitar fugas y bloqueos por recreación rápida
-      let audioCtx = audioContextRef.current;
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        audioContextRef.current = audioCtx;
-      }
-      
-      // Asegurar que el contexto no esté suspendido (autopolicy de navegadores)
+      // Re-verificar estado por si se suspendió durante el diálogo de permiso
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
-        console.log('🔊 AudioContext reanudado con éxito');
+        console.log('🔊 AudioContext reanudado tras diálogo de permisos');
       }
       
       const nativeSampleRate = audioCtx.sampleRate;
@@ -108,13 +112,18 @@ export const useAudioCapture = (onAudioData, onRecordingStop, onVolumeChange) =>
         }
       };
 
+      // Para evitar que Chrome en Android libere el ScriptProcessorNode con el Garbage Collector:
+      const silenceGain = audioCtx.createGain();
+      silenceGain.gain.value = 0;
       source.connect(processor);
-      processor.connect(audioCtx.destination);
+      processor.connect(silenceGain);
+      silenceGain.connect(audioCtx.destination);
 
       setIsRecording(true);
       console.log(`🎙️ Grabación iniciada (${nativeSampleRate}Hz → 16kHz PCM)`);
     } catch (err) {
       console.error('Error al acceder al micrófono:', err);
+      setIsRecording(false);
     }
   };
 

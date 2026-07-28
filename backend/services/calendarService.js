@@ -45,3 +45,33 @@ export const crearEventoCalendario = async ({ titulo, descripcion = '', fechaIni
     titulo: response.data.summary
   };
 };
+
+export const obtenerEventosCalendario = async ({ fechaInicio, fechaFin, maxResultados = 10 }) => {
+  const calendar = await getCalendarService();
+
+  // Si no se especifican fechas, por defecto consultamos desde el inicio del día de hoy
+  const timeMin = fechaInicio ? new Date(fechaInicio).toISOString() : new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+  const timeMax = fechaFin ? new Date(fechaFin).toISOString() : undefined;
+
+  console.log(`[Calendar Service] 📅 Listando eventos de Google Calendar desde: ${timeMin}`);
+
+  const response = await calendar.events.list({
+    calendarId: 'primary',
+    timeMin: timeMin,
+    timeMax: timeMax,
+    maxResults: maxResultados,
+    singleEvents: true,
+    orderBy: 'startTime'
+  });
+
+  const events = (response.data.items || []).map(evt => ({
+    id: evt.id,
+    titulo: evt.summary,
+    descripcion: evt.description || '',
+    inicio: evt.start?.dateTime || evt.start?.date,
+    fin: evt.end?.dateTime || evt.end?.date,
+    link: evt.htmlLink
+  }));
+
+  return { eventos: events, total: events.length };
+};

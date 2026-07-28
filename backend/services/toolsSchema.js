@@ -1,13 +1,17 @@
 export const gmailToolsSchema = [
   {
     name: "obtener_ultimos_correos",
-    description: "Obtiene una lista de los correos electrónicos más recientes de la bandeja de entrada del usuario.",
+    description: "Obtiene una lista de correos electrónicos de la cuenta del usuario. Permite buscar por remitente, palabra clave o tema específico.",
     parameters: {
       type: "object",
       properties: {
         max_resultados: {
           type: "integer",
           description: "El número máximo de correos a recuperar. Por defecto es 10."
+        },
+        busqueda: {
+          type: "string",
+          description: "Término de búsqueda opcional para buscar correos específicos (ej. 'Ruta N', 'from:Ruta N', 'factura', 'banco')."
         }
       }
     }
@@ -163,6 +167,35 @@ export const gmailToolsSchema = [
         }
       },
       required: ["titulo", "fecha_inicio"]
+    }
+  },
+  {
+    name: "obtener_eventos_calendario",
+    description: "Consulta, lee o lista los eventos y reuniones del Google Calendar del usuario.",
+    parameters: {
+      type: "object",
+      properties: {
+        fecha_inicio: {
+          type: "string",
+          description: "Fecha/hora de inicio en ISO 8601 a partir de la cual consultar los eventos (ej. '2026-07-27T00:00:00-05:00'). Si no se indica, consulta desde hoy."
+        },
+        fecha_fin: {
+          type: "string",
+          description: "Fecha/hora de fin en ISO 8601 hasta la cual consultar los eventos (ej. '2026-07-27T23:59:59-05:00')."
+        },
+        max_resultados: {
+          type: "integer",
+          description: "Número máximo de eventos a devolver. Por defecto 10."
+        }
+      }
+    }
+  },
+  {
+    name: "obtener_etiquetas",
+    description: "Obtiene la lista de todas las etiquetas (labels) de la cuenta de Gmail del usuario, incluidas las creadas manualmente.",
+    parameters: {
+      type: "object",
+      properties: {}
     }
   }
 ];

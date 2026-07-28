@@ -30,14 +30,15 @@ function getHeader(headers, name) {
   return header ? header.value : '';
 }
 
-// 1. Obtener la lista de los correos electrónicos más recientes
-export const obtenerUltimosCorreos = async (maxResultados = 5) => {
+// 1. Obtener la lista de los correos electrónicos más recientes (o filtrados por búsqueda)
+export const obtenerUltimosCorreos = async (maxResultados = 5, busqueda = '') => {
   const gmail = await getGmailService();
   
-  console.log(`[Gmail Service] 📥 Solicitando últimos ${maxResultados} correos...`);
+  const queryStr = busqueda ? busqueda : 'label:INBOX';
+  console.log(`[Gmail Service] 📥 Solicitando ${maxResultados} correos con filtro: "${queryStr}"...`);
   const response = await gmail.users.messages.list({
     userId: 'me',
-    q: 'label:INBOX', // Solo bandeja de entrada
+    q: queryStr,
     maxResults: maxResultados
   });
 
@@ -375,5 +376,25 @@ export const buscarEnWeb = async (query) => {
   } catch (error) {
     console.error('[Search Service] Error al realizar búsqueda:', error.message);
     return { error: `No se pudo completar la búsqueda en la web: ${error.message}` };
+  }
+};
+
+// 6. Obtener todas las etiquetas (labels) de la cuenta de Gmail
+export const obtenerEtiquetas = async () => {
+  try {
+    const gmail = await getGmailService();
+    console.log('[Gmail Service] 🏷️ Consultando lista de etiquetas de Gmail...');
+
+    const response = await gmail.users.labels.list({ userId: 'me' });
+    const labels = (response.data.labels || []).map(lbl => ({
+      id: lbl.id,
+      nombre: lbl.name,
+      tipo: lbl.type // 'user' o 'system'
+    }));
+
+    return { etiquetas: labels, total: labels.length };
+  } catch (error) {
+    console.error('[Gmail Service] Error al obtener etiquetas:', error.message);
+    return { error: `No se pudo obtener las etiquetas: ${error.message}` };
   }
 };
