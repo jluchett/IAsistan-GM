@@ -82,6 +82,12 @@ function App() {
   const audioPlayerRef = useRef(createAudioPlayer());
   const typingTimerRef = useRef(null);
 
+  // Mantener ref actualizada con los mensajes para enviarlos en reconexiones sin recrear el WS
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // Scroll automático
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -161,6 +167,16 @@ function App() {
       ws.onopen = () => {
         if (isCancelled) { ws.close(); return; }
         console.log('WS conectado');
+
+        // Filtrar mensajes significativos (excluyendo el saludo inicial por defecto si hay más mensajes)
+        const allMsgs = (messagesRef.current || []).filter(m => (m.role === 'user' || m.role === 'ai') && m.text);
+        const history = allMsgs.length > 1 ? allMsgs.slice(-10) : [];
+
+        console.log(`[Frontend] 🔄 Enviando init_session con ${history.length} mensajes de historial.`);
+        ws.send(JSON.stringify({
+          type: 'init_session',
+          history: history.map(m => ({ role: m.role, text: m.text }))
+        }));
       };
 
       ws.onmessage = (event) => {

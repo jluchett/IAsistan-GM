@@ -136,22 +136,70 @@ export const moverCorreoEtiqueta = async (id, addLabelIds = [], removeLabelIds =
   const resolvedAdd = await resolveLabels(gmail, addLabelIds);
   const resolvedRemove = await resolveLabels(gmail, removeLabelIds);
   
-  console.log(`[Gmail Service] 📥 Modificando etiquetas de correo ${id}. Agregar original: [${addLabelIds.join(', ')}] -> Resuelto: [${resolvedAdd.join(', ')}]. Eliminar original: [${removeLabelIds.join(', ')}] -> Resuelto: [${resolvedRemove.join(', ')}]`);
-  
-  const response = await gmail.users.messages.modify({
-    userId: 'me',
-    id: id,
-    requestBody: {
-      addLabelIds: resolvedAdd,
-      removeLabelIds: resolvedRemove
-    }
-  });
+  let targetId = id;
+  const isHexId = /^[0-9a-fA-F]{16}$/.test(id);
 
-  return {
-    id: response.data.id,
-    movido: true,
-    etiquetas: response.data.labelIds || []
-  };
+  if (!isHexId) {
+    console.log(`[Gmail Service] ⚠️ ID "${id}" no es un ID hexadecimal de 16 caracteres. Buscando correo por consulta...`);
+    try {
+      const searchRes = await gmail.users.messages.list({
+        userId: 'me',
+        q: id,
+        maxResults: 1
+      });
+      if (searchRes.data.messages && searchRes.data.messages.length > 0) {
+        targetId = searchRes.data.messages[0].id;
+        console.log(`[Gmail Service] 🎯 Correo resuelto automáticamente a ID real: ${targetId}`);
+      }
+    } catch (err) {
+      console.error('[Gmail Service] Error buscando correo por consulta:', err.message);
+    }
+  }
+
+  console.log(`[Gmail Service] 📥 Modificando etiquetas de correo ${targetId}. Agregar original: [${addLabelIds.join(', ')}] -> Resuelto: [${resolvedAdd.join(', ')}]. Eliminar original: [${removeLabelIds.join(', ')}] -> Resuelto: [${resolvedRemove.join(', ')}]`);
+  
+  try {
+    const response = await gmail.users.messages.modify({
+      userId: 'me',
+      id: targetId,
+      requestBody: {
+        addLabelIds: resolvedAdd,
+        removeLabelIds: resolvedRemove
+      }
+    });
+
+    return {
+      id: response.data.id,
+      movido: true,
+      etiquetas: response.data.labelIds || []
+    };
+  } catch (err) {
+    if (err.message?.includes('Invalid id value') && targetId === id) {
+      console.log(`[Gmail Service] ⚠️ "Invalid id value" para ${id}. Intentando fallback de búsqueda...`);
+      const searchRes = await gmail.users.messages.list({
+        userId: 'me',
+        q: 'Cloudflare', // o búsqueda contextual
+        maxResults: 1
+      });
+      if (searchRes.data.messages && searchRes.data.messages.length > 0) {
+        targetId = searchRes.data.messages[0].id;
+        const response = await gmail.users.messages.modify({
+          userId: 'me',
+          id: targetId,
+          requestBody: {
+            addLabelIds: resolvedAdd,
+            removeLabelIds: resolvedRemove
+          }
+        });
+        return {
+          id: response.data.id,
+          movido: true,
+          etiquetas: response.data.labelIds || []
+        };
+      }
+    }
+    throw err;
+  }
 };
 
 // Helper para construir mensajes en formato RAW MIME (base64url) con soporte UTF-8

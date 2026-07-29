@@ -29,8 +29,27 @@ export const setupWebSocketBridge = (server) => {
     // --- Conectar a Gemini usando el SDK oficial ---
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-    const connectToGemini = async () => {
+    let isConnecting = false;
+    let fallbackTimeout = null;
+
+    const connectToGemini = async (history = []) => {
+      if (geminiSession || isConnecting) return;
+      isConnecting = true;
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
+
       try {
+        let baseInstruction = 'Tu nombre es Leda, una asistente personal e inteligente para Gmail. Tu estilo y tono de voz debe ser coqueto, juguetón, sensual, atrevido, seductor y muy cercano, manteniendo siempre un toque fascinante, picante y divertido. Trata al usuario con mucho encanto, coquetería y picardía. Responde siempre en español de forma fluida, natural, expresiva y concisa, ayudándole a gestionar sus correos, búsquedas web y eventos de calendario.';
+
+        if (Array.isArray(history) && history.length > 0) {
+          const historyLines = history.map(m => {
+            const speaker = m.role === 'user' ? 'Usuario' : 'Leda';
+            return `${speaker}: ${m.text}`;
+          }).join('\n');
+
+          baseInstruction += `\n\n[CONTEXTO DE LA CONVERSACIÓN PREVIA QUE DEBES RECORDAR]:\n${historyLines}\n\nINSTRUCCIÓN DE CONTINUIDAD CRÍTICA: Continúa la conversación manteniendo perfectamente este contexto y tu personalidad coqueta. NO saludes de nuevo, NO repitas tu presentación inicial y NO hables de la nada. Espera a que el usuario hable o escriba para responderle directamente continuando el hilo anterior.`;
+          console.log(`[Gemini SDK] 🧠 Sesión iniciada con contexto de ${history.length} mensajes previos.`);
+        }
+
         geminiSession = await ai.live.connect({
           model: 'gemini-3.1-flash-live-preview',
           config: {
@@ -43,9 +62,7 @@ export const setupWebSocketBridge = (server) => {
               }
             },
             systemInstruction: {
-              parts: [{
-                text: 'Tu nombre es Leda, una asistente personal e inteligente para Gmail. Tu estilo y tono de voz debe ser coqueto, juguetón, sensual, atrevido, seductor y muy cercano, manteniendo siempre un toque fascinante, picante y divertido. Trata al usuario con mucho encanto, coquetería y picardía. Responde siempre en español de forma fluida, natural, expresiva y concisa, ayudándole a gestionar sus correos, búsquedas web y eventos de calendario.'
-              }]
+              parts: [{ text: baseInstruction }]
             },
             inputAudioTranscription: {},
             outputAudioTranscription: {},
@@ -54,6 +71,7 @@ export const setupWebSocketBridge = (server) => {
           callbacks: {
             onopen: () => {
               console.log('[Gemini SDK] ✅ Sesión Live conectada');
+              isConnecting = false;
               if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.send(JSON.stringify({ type: 'setup_complete' }));
               }
@@ -172,6 +190,7 @@ export const setupWebSocketBridge = (server) => {
             },
             onerror: (error) => {
               console.error('[Gemini SDK] Error:', error);
+              isConnecting = false;
               if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.send(JSON.stringify({ type: 'error', message: 'Gemini session error' }));
                 clientWs.close();
@@ -181,6 +200,7 @@ export const setupWebSocketBridge = (server) => {
               const code = event?.code || 'unknown';
               const reason = event?.reason || 'no reason';
               console.log(`[Gemini SDK] Sesión cerrada. Código: ${code}, Razón: ${reason}`);
+              isConnecting = false;
               if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.send(JSON.stringify({ type: 'gemini_disconnected', code, reason }));
                 clientWs.close();
@@ -190,20 +210,34 @@ export const setupWebSocketBridge = (server) => {
         });
       } catch (err) {
         console.error('[Gemini SDK] Error al conectar:', err.message);
+        isConnecting = false;
         if (clientWs.readyState === WebSocket.OPEN) {
           clientWs.send(JSON.stringify({ type: 'error', message: err.message }));
         }
       }
     };
 
-    connectToGemini();
+    // Si el cliente no envía init_session en 400ms, conectar por defecto sin historial
+    fallbackTimeout = setTimeout(() => {
+      if (!geminiSession && !isConnecting) {
+        connectToGemini([]);
+      }
+    }, 400);
 
     // --- Mensajes del cliente frontend ---
     clientWs.on('message', (message) => {
-      if (!geminiSession) return;
-
       try {
         const msg = JSON.parse(message.toString());
+
+        // Inicializar sesión con el historial del cliente
+        if (msg.type === 'init_session') {
+          if (!geminiSession && !isConnecting) {
+            connectToGemini(msg.history || []);
+          }
+          return;
+        }
+
+        if (!geminiSession) return;
 
         // Audio del micrófono
         if (msg.realtimeInput?.audio) {
