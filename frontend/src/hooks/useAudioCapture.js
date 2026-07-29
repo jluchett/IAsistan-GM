@@ -38,7 +38,7 @@ export const useAudioCapture = (onAudioData, onRecordingStop, onVolumeChange) =>
         return;
       }
 
-      // CRÍTICO PARA NAVEGADORES MÓVILES: Crear/reanudar AudioContext SINCRÓNICAMENTE dentro del evento de toque (user gesture)
+      // CRÍTICO PARA NAVEGADORES MÓVILES: Crear/reanudar AudioContext SINCRONICAMENTE dentro del evento de toque (user gesture)
       let audioCtx = audioContextRef.current;
       if (!audioCtx || audioCtx.state === 'closed') {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
