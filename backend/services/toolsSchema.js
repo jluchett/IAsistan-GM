@@ -1,17 +1,17 @@
 export const gmailToolsSchema = [
   {
     name: "obtener_ultimos_correos",
-    description: "Obtiene una lista de correos electrónicos de la cuenta del usuario. Permite buscar por remitente, palabra clave o tema específico.",
+    description: "Obtiene la lista de correos electrónicos del usuario. Si el usuario pide procesar o mover 'todos' los correos de un remitente o tema, se DEBE especificar un max_resultados de 50 o 100 para abarcar todo el Inbox.",
     parameters: {
       type: "object",
       properties: {
         max_resultados: {
           type: "integer",
-          description: "El número máximo de correos a recuperar. Por defecto es 10."
+          description: "El número máximo de correos a recuperar. Especifica 50 o 100 si el usuario indica 'todos' o para búsquedas masivas."
         },
         busqueda: {
           type: "string",
-          description: "Término de búsqueda opcional para buscar correos específicos (ej. 'Ruta N', 'from:Ruta N', 'factura', 'banco')."
+          description: "Término de búsqueda opcional para buscar correos específicos (ej. 'Ruta N', 'from:Global66', 'Global66', 'factura', 'banco')."
         }
       }
     }

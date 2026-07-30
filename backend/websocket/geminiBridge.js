@@ -44,7 +44,7 @@ DIRECTIVA DE DIÁLOGO AFECTIVO, TONO DELICADO Y ESPAÑOL NEUTRO:
 - Habla SIEMPRE en ESPAÑOL LATINO NEUTRO, cercano y natural. Evita estrictamente palabras, giros o modismos propios de España (como "pillina", "vale", "os", "vosotros", etc.).
 - Mantén un tono de voz delicado, suave, dulce, cariñoso, empático y con susurros cálidos y sensuales.
 - Modula tu voz de forma altamente expresiva y afectiva en tiempo real: usa inflexiones emocionales suaves, risitas coquetas sutiles y pausas expresivas llenas de ternura.
-- Trata al usuario con mucho encanto y delicadeza ("amor", "cielo", "cariño", "corazón", "guapo", "papi"), expresando emociones vivas y una conexión afectiva profunda.
+- DIRECTIVA DE ACCIONES EN MASA Y BÚSQUEDAS: Cuando el usuario pida mover, archivar, borrar o procesar "TODOS" los correos de un determinado emisor o tema, DEBES ejecutar 'obtener_ultimos_correos' con 'max_resultados: 50' o 100 y mover/procesar absolutamente cada uno de los mensajes devueltos en la bandeja de entrada sin omitir ninguno.
 - Responde siempre en español neutro de forma fluida, natural, expresiva y concisa, ayudándole a gestionar sus correos de Gmail, búsquedas web y eventos de calendario.`;
 
         if (Array.isArray(history) && history.length > 0) {
@@ -136,12 +136,12 @@ DIRECTIVA DE DIÁLOGO AFECTIVO, TONO DELICADO Y ESPAÑOL NEUTRO:
                       return;
                     }
 
-                    // Si está autenticado, ejecutar las funciones reales
-                    for (const call of message.toolCall.functionCalls) {
+                    // Si está autenticado, ejecutar las funciones reales en paralelo (ultra rápido para acciones en masa)
+                    const responses = await Promise.all(message.toolCall.functionCalls.map(async (call) => {
                       let result = {};
                       try {
                         if (call.name === 'obtener_ultimos_correos') {
-                          const max = call.args.max_resultados || 5;
+                          const max = call.args.max_resultados || (call.args.busqueda ? 50 : 20);
                           const busqueda = call.args.busqueda || '';
                           result = await obtenerUltimosCorreos(max, busqueda);
                         } else if (call.name === 'leer_correo_por_id') {
@@ -174,6 +174,17 @@ DIRECTIVA DE DIÁLOGO AFECTIVO, TONO DELICADO Y ESPAÑOL NEUTRO:
                           });
                         } else if (call.name === 'obtener_etiquetas') {
                           result = await obtenerEtiquetas();
+                        } else if (call.name === 'sintetizar_efecto_sonoro') {
+                          if (clientWs.readyState === WebSocket.OPEN) {
+                            clientWs.send(JSON.stringify({
+                              type: 'sound_trigger',
+                              efecto: call.args.efecto,
+                              bpm: call.args.bpm,
+                              duracion: call.args.duracion,
+                              frecuencia: call.args.frecuencia
+                            }));
+                          }
+                          result = { status: "sonido_sintetizado", mensaje: `Efecto sonoro '${call.args.efecto}' sintetizado en el navegador.` };
                         } else {
                           result = { error: `Herramienta '${call.name}' no implementada.` };
                         }
@@ -182,13 +193,14 @@ DIRECTIVA DE DIÁLOGO AFECTIVO, TONO DELICADO Y ESPAÑOL NEUTRO:
                         result = { error: `Error ejecutando la acción de Gmail: ${err.message}` };
                       }
 
-                      functionResponses.push({
+                      return {
                         name: call.name,
                         id: call.id,
                         response: result
-                      });
-                    }
+                      };
+                    }));
 
+                    functionResponses.push(...responses);
                     console.log('[Bridge] Enviando respuestas reales de Gmail a Gemini:', JSON.stringify(functionResponses));
                     geminiSession.sendToolResponse({ functionResponses });
                   })();
