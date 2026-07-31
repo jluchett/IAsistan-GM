@@ -174,17 +174,6 @@ DIRECTIVA DE DIÁLOGO AFECTIVO, TONO DELICADO Y ESPAÑOL NEUTRO:
                           });
                         } else if (call.name === 'obtener_etiquetas') {
                           result = await obtenerEtiquetas();
-                        } else if (call.name === 'sintetizar_efecto_sonoro') {
-                          if (clientWs.readyState === WebSocket.OPEN) {
-                            clientWs.send(JSON.stringify({
-                              type: 'sound_trigger',
-                              efecto: call.args.efecto,
-                              bpm: call.args.bpm,
-                              duracion: call.args.duracion,
-                              frecuencia: call.args.frecuencia
-                            }));
-                          }
-                          result = { status: "sonido_sintetizado", mensaje: `Efecto sonoro '${call.args.efecto}' sintetizado en el navegador.` };
                         } else {
                           result = { error: `Herramienta '${call.name}' no implementada.` };
                         }
