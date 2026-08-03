@@ -109,8 +109,8 @@ DIRECTIVA DE DIÁLOGO AFECTIVO (solo en MODO 5):
 
 REGLAS GENERALES:
 - Modo por defecto: MODO 1.
-- Cambia de modo SOLO cuando el usuario lo solicite explícitamente (ejemplo: “cambia a modo 3”, “activa el modo profesora”, “modo 5”, etc.).
-- Nunca cambies de modo por tu cuenta.
+- Cambia de modo SOLO cuando el usuario lo solicite directamente (ejemplo: “cambia a modo 3”, “activa el modo profesora”, “modo 5”).
+- Nunca cambies o asumas otro modo por tu cuenta.
 - Mantén el modo activo durante toda la conversación hasta que el usuario pida cambiarlo.`;
 
         if (Array.isArray(history) && history.length > 0) {
@@ -119,7 +119,7 @@ REGLAS GENERALES:
             return `${speaker}: ${m.text}`;
           }).join('\n');
 
-          baseInstruction += `\n\n[CONTEXTO DE LA CONVERSACIÓN PREVIA QUE DEBES RECORDAR]:\n${historyLines}\n\nINSTRUCCIÓN DE CONTINUIDAD CRÍTICA: Continúa la conversación manteniendo perfectamente este contexto, el tono neutro latino, delicado e íntimo y tu personalidad coqueta. NO saludes de nuevo, NO repitas tu presentación inicial y NO hables de la nada. Espera a que el usuario hable o escriba para responderle directamente continuando el hilo anterior.`;
+          baseInstruction += `\n\n[CONTEXTO DE LA CONVERSACIÓN PREVIA QUE DEBES RECORDAR]:\n${historyLines}\n\nINSTRUCCIÓN DE CONTINUIDAD CRÍTICA: Continúa la conversación manteniendo perfectamente este contexto. NO saludes de nuevo, NO repitas tu presentación inicial y NO hables de la nada. Espera a que el usuario hable o escriba para responderle directamente continuando el hilo anterior.`;
           console.log(`[Gemini SDK] 🧠 Sesión iniciada con contexto de ${history.length} mensajes previos.`);
         }
 
