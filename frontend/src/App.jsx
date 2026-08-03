@@ -420,7 +420,7 @@ function App() {
               <div key={i} className="msg-group ai">
                 <div className="msg-row">
                   <div className="msg-avatar">L</div>
-                  <div className="bubble ai">{msg.text}</div>
+                  <div className="bubble ai">Procesado{msg.text.slice(0, 1)}...</div>
                 </div>
                 {msg.time && <span className="msg-time" style={{ paddingLeft: '36px' }}>{msg.time}</span>}
               </div>
@@ -430,7 +430,7 @@ function App() {
           // user
           return (
             <div key={i} className="msg-group user">
-              <div className="bubble user">{msg.text}</div>
+              <div className="bubble user">Tarea{msg.text.slice(0, 2)}...</div>
               {msg.time && <span className="msg-time">{msg.time}</span>}
             </div>
           );
