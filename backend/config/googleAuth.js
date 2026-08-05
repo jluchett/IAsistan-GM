@@ -94,6 +94,25 @@ export const getGmailService = async () => {
   if (!tokens) {
     throw new Error('No hay tokens de Google OAuth2 configurados. Autentícate primero.');
   }
+
+  // Refrescar access_token si caducó o caducará en 60 segundos
+  if (tokens.expiry_date && (Date.now() >= tokens.expiry_date - 60000)) {
+    console.log('[Google Auth] 🔄 Token de acceso expirado. Refrescando automáticamente con OAuth2...');
+    try {
+      const newTokensResponse = await oauth2Client.refreshAccessToken();
+      const newTokens = newTokensResponse.credentials;
+      const mergedTokens = { ...tokens, ...newTokens };
+      saveTokens(mergedTokens);
+      console.log('[Google Auth] ✅ Token de acceso renovado exitosamente.');
+    } catch (err) {
+      console.error('[Google Auth] Error al refrescar token de acceso:', err.message);
+      if (err.message?.includes('invalid_grant')) {
+        deleteTokens();
+        throw new Error('La sesión de Google ha caducado. Por favor, vuelve a hacer clic en "Conectar con Google" en el botón superior derecho.');
+      }
+    }
+  }
+
   return google.gmail({ version: 'v1', auth: oauth2Client });
 };
 

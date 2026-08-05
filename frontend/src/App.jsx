@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './index.css';
 import { useAudioCapture } from './hooks/useAudioCapture';
+import { MorningBriefingModal } from './components/MorningBriefingModal';
+import { DraftPreviewModal } from './components/DraftPreviewModal';
 
 const getApiUrl = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
@@ -77,6 +79,10 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
+  const [briefingData, setBriefingData] = useState(null);
+  const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+  const [draftData, setDraftData] = useState(null);
+  const [isDraftOpen, setIsDraftOpen] = useState(false);
   const wsRef = useRef(null);
   const chatEndRef = useRef(null);
   const audioPlayerRef = useRef(createAudioPlayer());
@@ -193,6 +199,16 @@ function App() {
           }
           if (data.type === 'gemini_disconnected') {
             setConnectionStatus('error');
+            return;
+          }
+          if (data.type === 'morning_briefing_data') {
+            setBriefingData(data.briefing);
+            setIsBriefingOpen(true);
+            return;
+          }
+          if (data.type === 'email_action_preview') {
+            setDraftData({ ...data.data, action: data.action });
+            setIsDraftOpen(true);
             return;
           }
 
@@ -371,7 +387,29 @@ function App() {
           </div>
         </div>
 
-        <div className="header-actions">
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            className="briefing-btn"
+            style={{
+              background: 'linear-gradient(90deg, #00f2fe, #4facfe)',
+              color: '#0f172a',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '7px 14px',
+              fontSize: '0.82rem',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 0 12px rgba(0, 242, 254, 0.3)'
+            }}
+            onClick={() => sendTextMessage('Dame mi resumen del día')}
+            title="Obtener Resumen Diario Ejecutivo"
+          >
+            🌅 Resumen del Día
+          </button>
+
           <button
             className="icon-btn danger"
             onClick={handleLogout}
@@ -420,7 +458,7 @@ function App() {
               <div key={i} className="msg-group ai">
                 <div className="msg-row">
                   <div className="msg-avatar">L</div>
-                  <div className="bubble ai">Procesado{msg.text.slice(0, 1)}...</div>
+                  <div className="bubble ai">{msg.text}</div>
                 </div>
                 {msg.time && <span className="msg-time" style={{ paddingLeft: '36px' }}>{msg.time}</span>}
               </div>
@@ -430,7 +468,7 @@ function App() {
           // user
           return (
             <div key={i} className="msg-group user">
-              <div className="bubble user">Tarea{msg.text.slice(0, 2)}...</div>
+              <div className="bubble user">{msg.text}</div>
               {msg.time && <span className="msg-time">{msg.time}</span>}
             </div>
           );
@@ -517,6 +555,42 @@ function App() {
           </svg>
         </button>
       </div>
+
+      <MorningBriefingModal
+        isOpen={isBriefingOpen}
+        onClose={() => setIsBriefingOpen(false)}
+        briefingData={briefingData}
+      />
+
+      <DraftPreviewModal
+        isOpen={isDraftOpen}
+        onClose={() => setIsDraftOpen(false)}
+        draftData={draftData}
+        onSend={async ({ to, subject, body }) => {
+          const res = await fetch(`${API_URL}/api/email/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destinatario: to, asunto: subject, cuerpo: body })
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            throw new Error(data.error || 'Error al enviar el correo.');
+          }
+          setMessages(prev => [...prev, { role: 'ai', text: `✅ Correo enviado con éxito a ${to} con el asunto "${subject}".`, time: nowTime() }]);
+        }}
+        onSaveDraft={async ({ to, subject, body }) => {
+          const res = await fetch(`${API_URL}/api/email/draft`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destinatario: to, asunto: subject, cuerpo: body })
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            throw new Error(data.error || 'Error al guardar borrador.');
+          }
+          setMessages(prev => [...prev, { role: 'ai', text: `💾 Borrador guardado con éxito para ${to}.`, time: nowTime() }]);
+        }}
+      />
     </div>
   );
 }

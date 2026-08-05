@@ -33,12 +33,43 @@ const server = http.createServer(app);
 
 // Inicializar puente WebSocket de Gemini
 import { getAuthUrl, oauth2Client, saveTokens, hasValidTokens, deleteTokens } from './config/googleAuth.js';
+import { enviarCorreo, crearBorrador } from './services/gmailService.js';
 
 setupWebSocketBridge(server);
 
 // Endpoints básicos HTTP
 app.get('/', (req, res) => {
   res.send('Gmail Assistant Backend is running. WS bridge is active.');
+});
+
+// Endpoint directo HTTP para enviar correo desde la tarjeta modal sin bucles de confirmación
+app.post('/api/email/send', async (req, res) => {
+  try {
+    const { destinatario, asunto, cuerpo } = req.body;
+    if (!destinatario || !cuerpo) {
+      return res.status(400).json({ error: 'Destinatario y cuerpo son obligatorios.' });
+    }
+    const result = await enviarCorreo(destinatario, asunto || 'Sin asunto', cuerpo);
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('[API Send Email Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint directo HTTP para guardar borrador desde la tarjeta modal
+app.post('/api/email/draft', async (req, res) => {
+  try {
+    const { destinatario, asunto, cuerpo } = req.body;
+    if (!destinatario || !cuerpo) {
+      return res.status(400).json({ error: 'Destinatario y cuerpo son obligatorios.' });
+    }
+    const result = await crearBorrador(destinatario, asunto || 'Sin asunto', cuerpo);
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('[API Draft Email Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Redirigir al consentimiento de Google

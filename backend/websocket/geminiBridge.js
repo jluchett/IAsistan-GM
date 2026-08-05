@@ -224,13 +224,58 @@ REGLAS GENERALES:
                           result = await moverCorreoEtiqueta(call.args.id, call.args.addLabelIds, call.args.removeLabelIds);
                         } else if (call.name === 'crear_borrador') {
                           result = await crearBorrador(call.args.destinatario, call.args.asunto, call.args.cuerpo);
+                          if (clientWs.readyState === WebSocket.OPEN) {
+                            clientWs.send(JSON.stringify({
+                              type: 'email_action_preview',
+                              action: 'borrador',
+                              data: { destinatario: call.args.destinatario, asunto: call.args.asunto, cuerpo: call.args.cuerpo, id: result.id }
+                            }));
+                          }
+                          result = { status: "borrador_creado", mensaje: "Borrador guardado y tarjeta de vista previa abierta en pantalla para el usuario." };
                         } else if (call.name === 'enviar_correo') {
-                          result = await enviarCorreo(call.args.destinatario, call.args.asunto, call.args.cuerpo);
+                          // Mostrar la vista previa en el modal sin enviar inmediatamente para requerir confirmación explícita del usuario
+                          if (clientWs.readyState === WebSocket.OPEN) {
+                            clientWs.send(JSON.stringify({
+                              type: 'email_action_preview',
+                              action: 'previsualizacion',
+                              data: { destinatario: call.args.destinatario, asunto: call.args.asunto, cuerpo: call.args.cuerpo }
+                            }));
+                          }
+                          result = { status: "vista_previa_mostrada", mensaje: "Se ha presentado la tarjeta de previsualización al usuario en pantalla para que confirme el envío." };
                         } else if (call.name === 'responder_correo') {
-                          result = await responderCorreo(call.args.id_correo, call.args.cuerpo);
+                          if (clientWs.readyState === WebSocket.OPEN) {
+                            clientWs.send(JSON.stringify({
+                              type: 'email_action_preview',
+                              action: 'previsualizacion',
+                              data: { id_correo: call.args.id_correo, cuerpo: call.args.cuerpo }
+                            }));
+                          }
+                          result = { status: "vista_previa_mostrada", mensaje: "Se ha presentado la vista previa de la respuesta en la pantalla del usuario." };
                         } else if (call.name === 'obtener_resumen_diario') {
-                          const max = call.args.max_resultados || 10;
-                          result = await obtenerResumenDiario(max);
+                          const max = call.args.max_resultados || 5;
+                          const emailsRes = await obtenerResumenDiario(max).catch(err => ({ emails: [], error: err.message }));
+                          const calendarRes = await obtenerEventosCalendario({ maxResultados: 5 }).catch(err => ({ eventos: [], error: err.message }));
+                          const newsRes = await buscarEnWeb('noticias tecnología hoy').catch(err => ({ resultados: [], error: err.message }));
+
+                          const briefingPayload = {
+                            fecha: new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+                            correos: emailsRes.emails || [],
+                            eventos: calendarRes.eventos || [],
+                            noticias: newsRes.resultados || []
+                          };
+
+                          if (clientWs.readyState === WebSocket.OPEN) {
+                            clientWs.send(JSON.stringify({
+                              type: 'morning_briefing_data',
+                              briefing: briefingPayload
+                            }));
+                          }
+
+                          result = {
+                            resumen_ejecutivo: briefingPayload,
+                            instruccion_narrativa: "Presenta este resumen del día de forma concisa, destacando los correos urgentes, tus eventos de hoy y una noticia clave."
+                          };
+
                         } else if (call.name === 'buscar_en_web') {
                           result = await buscarEnWeb(call.args.query);
                         } else if (call.name === 'crear_evento_calendario') {

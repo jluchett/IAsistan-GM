@@ -1,11 +1,9 @@
 import { google } from 'googleapis';
-import { oauth2Client, loadTokens } from '../config/googleAuth.js';
+import { oauth2Client, getGmailService } from '../config/googleAuth.js';
 
 const getCalendarService = async () => {
-  const tokens = loadTokens();
-  if (!tokens) {
-    throw new Error('No hay tokens de Google OAuth2 configurados. Autentícate primero.');
-  }
+  // getGmailService se encarga de verificar y auto-refrescar los tokens si es necesario
+  await getGmailService();
   return google.calendar({ version: 'v3', auth: oauth2Client });
 };
 
